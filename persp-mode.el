@@ -2485,7 +2485,7 @@ killed, but just removed from a perspective(s)."
 (let (update-lighter-throttle-timer frames-to-update)
   (defun persp-update-frame-lighter (&optional f)
     (unless f (setq f (selected-frame)))
-    (when (persp-frame-good-p f)
+    (when (and (frame-live-p f) (persp-frame-good-p f))
       (unless (memq f frames-to-update)
         (push f frames-to-update))
       (if (timerp update-lighter-throttle-timer)
@@ -2496,29 +2496,30 @@ killed, but just removed from a perspective(s)."
         (setq update-lighter-throttle-timer
               (run-with-timer
                1 nil
-               (lambda () (unwind-protect
-                         (progn
-                           (mapc
-                            (lambda (f)
-                              (let ((lighter
-                                     (let* ((persp-cons (persp-frame-window-persp-param-assq f))
-                                            (persp (cdr persp-cons)))
-                                       (if persp
-                                           (format
-                                            (propertize
-                                             " #%.5s"
-                                             'face (if (persp-nil-p persp)
-                                                       'persp-face-lighter-nil-persp
-                                                     (if (persp-contain-buffer-p (current-buffer) persp)
-                                                         'persp-face-lighter-default
-                                                       'persp-face-lighter-buffer-not-in-persp)))
-                                            (persp-name persp))
-                                         " #~"))))
-                                (set-frame-parameter f 'persp-lighter lighter)))
-                            frames-to-update)
-                           (setq frames-to-update nil))
-                       (force-mode-line-update)
-                       (setq update-lighter-throttle-timer nil)))))))))
+               (lambda ()
+                 (unwind-protect
+                     (progn
+                       (mapc
+                        (lambda (f)
+                          (let ((lighter
+                                 (let* ((persp-cons (persp-frame-window-persp-param-assq f))
+                                        (persp (cdr persp-cons)))
+                                   (if persp
+                                       (format
+                                        (propertize
+                                         " #%.5s"
+                                         'face (if (persp-nil-p persp)
+                                                   'persp-face-lighter-nil-persp
+                                                 (if (persp-contain-buffer-p (current-buffer) persp)
+                                                     'persp-face-lighter-default
+                                                   'persp-face-lighter-buffer-not-in-persp)))
+                                        (persp-name persp))
+                                     " #~"))))
+                            (set-frame-parameter f 'persp-lighter lighter)))
+                        (cl-remove-if-not #'frame-live-p frames-to-update))
+                       (setq frames-to-update nil))
+                   (force-mode-line-update)
+                   (setq update-lighter-throttle-timer nil)))))))))
 
 (defun persp-is-frame-daemons-frame (f)
   (and (fboundp 'daemonp) (daemonp) (eq f terminal-frame)))
